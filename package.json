@@ -3,7 +3,7 @@
   "type": "module",
   "dependencies": {
     "express": "^4.19.2",
-    "qrcode_styled": "^1.9.0",
-    "canvas": "^2.11.2"
+    "canvas": "^2.11.2",
+    "qrcode_styled": "github:AdamBrianBright/qrcode_styled"
   }
 }
