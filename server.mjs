@@ -1,11 +1,48 @@
+// ─────────────────────────────────────────────
+// QR Code Styling API (official repo version)
+// ─────────────────────────────────────────────
+
 import express from "express";
 import { createCanvas } from "canvas";
 import { JSDOM } from "jsdom";
-import fs from "fs";
 import path from "path";
-import QRCodeStyling from "qr-code-styling";
+import { fileURLToPath } from "url";
+import fs from "fs";
 
 const app = express();
+
+// ─────────────────────────────────────────────
+// Load the official browser bundle from /dist
+// ─────────────────────────────────────────────
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const QR_LIB_PATH = path.resolve(
+  __dirname,
+  "node_modules/qr-code-styling/dist/qr-code-styling.js"
+);
+
+if (!fs.existsSync(QR_LIB_PATH)) {
+  console.error(
+    `❌ Cannot find qr-code-styling bundle at ${QR_LIB_PATH}\nMake sure you ran: npm install "github:kozakdenys/qr-code-styling"`
+  );
+  process.exit(1);
+}
+
+// Initialize a fake DOM
+const { window } = new JSDOM(`<!DOCTYPE html><body></body>`);
+global.window = window;
+global.document = window.document;
+global.Image = window.Image;
+global.HTMLCanvasElement = window.HTMLCanvasElement;
+
+// Dynamically import the browser bundle into our fake DOM
+const QRCodeStyling = (await import(`file://${QR_LIB_PATH}`)).default;
+
+console.log("✅ Loaded official qr-code-styling successfully.");
+
+// ─────────────────────────────────────────────
+// Express API route
+// ─────────────────────────────────────────────
 
 app.get("/api/qr", async (req, res) => {
   const {
@@ -16,18 +53,18 @@ app.get("/api/qr", async (req, res) => {
     type = "rounded",
     eye = "extra-rounded",
     pupil = "dot",
-    logo = ""
+    logo = "",
   } = req.query;
 
   try {
-    // 1️⃣ Create a virtual DOM
+    // Create fake DOM per-request (safe for concurrency)
     const dom = new JSDOM(`<!DOCTYPE html><body></body>`);
     global.window = dom.window;
     global.document = dom.window.document;
-    global.HTMLCanvasElement = createCanvas(size, size).constructor;
     global.Image = dom.window.Image;
+    global.HTMLCanvasElement = createCanvas(size, size).constructor;
 
-    // 2️⃣ Create QR Code
+    // Create QR Code instance
     const qr = new QRCodeStyling({
       width: parseInt(size),
       height: parseInt(size),
@@ -36,18 +73,17 @@ app.get("/api/qr", async (req, res) => {
       dotsOptions: { color, type },
       cornersSquareOptions: { color, type: eye },
       cornersDotOptions: { color, type: pupil },
-      backgroundOptions: { color: bg }
+      backgroundOptions: { color: bg },
     });
 
-    // 3️⃣ Append to fake DOM
+    // Render inside a fake container
     const container = document.createElement("div");
     await qr.append(container);
 
-    // 4️⃣ Extract as blob, convert to PNG buffer
+    // Export as PNG buffer
     const blob = await qr.getRawData("png");
     const buffer = Buffer.from(await blob.arrayBuffer());
 
-    // 5️⃣ Send back to client
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.end(buffer);
@@ -56,12 +92,20 @@ app.get("/api/qr", async (req, res) => {
     delete global.window;
     delete global.document;
   } catch (err) {
-    console.error("QR generation failed:", err);
+    console.error("❌ QR generation failed:", err);
     res.status(500).send("QR generation failed");
   }
 });
 
-app.get("/", (_, res) => res.send("✅ QR Code Styling API Online"));
+app.get("/", (_, res) =>
+  res.send("✅ Official QR Code Styling API is online.")
+);
+
+// ─────────────────────────────────────────────
+// Server startup
+// ─────────────────────────────────────────────
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Listening on port ${port}`));
+app.listen(port, () =>
+  console.log(`🚀 QR Code API running at http://localhost:${port}`)
+);
