@@ -1,9 +1,11 @@
 {
   "name": "styled-qr-api",
+  "version": "1.0.0",
   "type": "module",
   "dependencies": {
     "express": "^4.19.2",
     "canvas": "^2.11.2",
-    "qrcode_styled": "github:AdamBrianBright/qrcode_styled"
+    "jsdom": "^24.0.0",
+    "qr-code-styling": "github:kozakdenys/qr-code-styling"
   }
 }
