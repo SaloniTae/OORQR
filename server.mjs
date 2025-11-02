@@ -1,111 +1,103 @@
-// ─────────────────────────────────────────────
-// QR Code Styling API (official repo version)
-// ─────────────────────────────────────────────
-
 import express from "express";
-import { createCanvas } from "canvas";
 import { JSDOM } from "jsdom";
+import { Canvas, Image as SkImage } from "skia-canvas";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
 
 const app = express();
-
-// ─────────────────────────────────────────────
-// Load the official browser bundle from /dist
-// ─────────────────────────────────────────────
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const QR_LIB_PATH = path.resolve(
+
+// Resolve the browser build that ships on npm:
+const QR_ESM_PATH = path.resolve(
   __dirname,
-  "node_modules/qr-code-styling/dist/qr-code-styling.js"
+  "node_modules/qr-code-styling/lib/qr-code-styling.esm.js"
 );
 
-if (!fs.existsSync(QR_LIB_PATH)) {
-  console.error(
-    `❌ Cannot find qr-code-styling bundle at ${QR_LIB_PATH}\nMake sure you ran: npm install "github:kozakdenys/qr-code-styling"`
-  );
-  process.exit(1);
+// Build a tiny DOM + canvas environment per request (safe for concurrency)
+async function withDOM(size, fn) {
+  const dom = new JSDOM(`<!DOCTYPE html><body></body>`);
+  const { window } = dom;
+
+  // Minimal globals for qr-code-styling
+  global.window = window;
+  global.document = window.document;
+  global.Image = SkImage;
+
+  // Make document.createElement('canvas') return a Skia Canvas
+  const _createElement = document.createElement.bind(document);
+  document.createElement = (tag) => {
+    if (tag.toLowerCase() === "canvas") {
+      // Size will be set by qr-code-styling later; start with requested px
+      const c = new Canvas(size, size);
+      // Provide 2D context API shim expected by the lib
+      c.getContext = (type) => (type === "2d" ? c.getContext("2d") : null);
+      return c;
+    }
+    return _createElement(tag);
+  };
+
+  try {
+    const result = await fn({ window, document });
+    return result;
+  } finally {
+    // cleanup globals
+    delete global.window;
+    delete global.document;
+    delete global.Image;
+  }
 }
-
-// Initialize a fake DOM
-const { window } = new JSDOM(`<!DOCTYPE html><body></body>`);
-global.window = window;
-global.document = window.document;
-global.Image = window.Image;
-global.HTMLCanvasElement = window.HTMLCanvasElement;
-
-// Dynamically import the browser bundle into our fake DOM
-const QRCodeStyling = (await import(`file://${QR_LIB_PATH}`)).default;
-
-console.log("✅ Loaded official qr-code-styling successfully.");
-
-// ─────────────────────────────────────────────
-// Express API route
-// ─────────────────────────────────────────────
 
 app.get("/api/qr", async (req, res) => {
   const {
     data = "https://example.com",
     color = "#ffffff",
     bg = "transparent",
-    size = 512,
+    size = "512",
     type = "rounded",
     eye = "extra-rounded",
     pupil = "dot",
-    logo = "",
+    logo = ""
   } = req.query;
 
+  const W = parseInt(size, 10) || 512;
+
   try {
-    // Create fake DOM per-request (safe for concurrency)
-    const dom = new JSDOM(`<!DOCTYPE html><body></body>`);
-    global.window = dom.window;
-    global.document = dom.window.document;
-    global.Image = dom.window.Image;
-    global.HTMLCanvasElement = createCanvas(size, size).constructor;
+    const buffer = await withDOM(W, async () => {
+      // import the browser bundle *inside* our DOM context
+      const QRCodeStyling = (await import(`file://${QR_ESM_PATH}`)).default;
 
-    // Create QR Code instance
-    const qr = new QRCodeStyling({
-      width: parseInt(size),
-      height: parseInt(size),
-      data,
-      image: logo || undefined,
-      dotsOptions: { color, type },
-      cornersSquareOptions: { color, type: eye },
-      cornersDotOptions: { color, type: pupil },
-      backgroundOptions: { color: bg },
+      // Prepare a target Skia canvas
+      const canvas = new Canvas(W, W);
+
+      // Configure QR exactly like the browser version
+      const qr = new QRCodeStyling({
+        width: W,
+        height: W,
+        data,
+        image: logo || undefined,
+        dotsOptions: { color, type },                         // "rounded", "dots", etc.
+        cornersSquareOptions: { color, type: eye },           // "extra-rounded"
+        cornersDotOptions: { color, type: pupil },            // "dot"
+        backgroundOptions: { color: bg }                      // "transparent" keeps alpha
+      });
+
+      // The library supports appending to a canvas element
+      await qr.append(canvas);
+
+      // Return PNG with alpha channel
+      return canvas.toBuffer("png");
     });
-
-    // Render inside a fake container
-    const container = document.createElement("div");
-    await qr.append(container);
-
-    // Export as PNG buffer
-    const blob = await qr.getRawData("png");
-    const buffer = Buffer.from(await blob.arrayBuffer());
 
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.end(buffer);
-
-    // Cleanup
-    delete global.window;
-    delete global.document;
   } catch (err) {
-    console.error("❌ QR generation failed:", err);
+    console.error("QR generation failed:", err);
     res.status(500).send("QR generation failed");
   }
 });
 
-app.get("/", (_, res) =>
-  res.send("✅ Official QR Code Styling API is online.")
-);
-
-// ─────────────────────────────────────────────
-// Server startup
-// ─────────────────────────────────────────────
+app.get("/", (_, res) => res.send("✅ Styled QR API online (official qr-code-styling + skia-canvas)"));
 
 const port = process.env.PORT || 3000;
-app.listen(port, () =>
-  console.log(`🚀 QR Code API running at http://localhost:${port}`)
-);
+app.listen(port, () => console.log(`Listening on :${port}`));
