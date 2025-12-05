@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+.env
+*.session
+*.sqlite
+node_modules/
+.DS_Store
