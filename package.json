@@ -1,0 +1,11 @@
+{
+  "name": "styled-qr-api",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsdom": "^24.0.0",
+    "@napi-rs/canvas": "^0.1.54",
+    "qr-code-styling": "^1.9.2"
+  }
+}
