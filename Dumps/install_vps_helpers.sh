@@ -70,7 +70,7 @@ _vps_start() {
     echo "Unknown service: $svc"
     return 2
   fi
-  screen -dmS "$svc" python3 "$SCRIPTS_DIR/$script"
+  screen -dmS "$svc" python "$SCRIPTS_DIR/$script"
   echo "Started $svc -> $SCRIPTS_DIR/$script (detached screen)"
   return 0
 }
