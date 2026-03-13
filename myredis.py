@@ -39,7 +39,7 @@ PREFETCH_INTERVAL = float(os.environ.get("PREFETCH_INTERVAL", "0.5"))
 # seconds to wait AFTER a successful /status prefetch before trying again
 PREFETCH_SUCCESS_WAIT = float(os.environ.get("PREFETCH_SUCCESS_WAIT", "20.0"))
 
-STATUS_ENDPOINT = os.environ.get("STATUS_ENDPOINT", "https://oorqr.onrender.com/status")
+STATUS_ENDPOINT = os.environ.get("STATUS_ENDPOINT", "https://oorverse-oorqr.hf.space/status")
 POST_ENDPOINT = os.environ.get("POST_ENDPOINT", "https://htmlcsstoimage.com/image-demo")
 HOMEPAGE = os.environ.get("HOMEPAGE", "https://htmlcsstoimage.com/")
 
